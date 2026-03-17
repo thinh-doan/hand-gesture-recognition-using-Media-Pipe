@@ -17,7 +17,7 @@ mp_hands = mp.solutions.hands   # nhận diện bàn tay
 
 def play_audio(text):       # Hàm phát âm thanh
     filename = f"voice_{text.replace(' ', '_').lower()}.mp3"
-    tts = gTTS(text=text, lang='vi')    # Tạo giọng nói, tiếng Indo
+    tts = gTTS(text=text, lang='vi')    # Tạo giọng nói, tiếng việt
     tts.save(filename)
 
     #pygame load file mp3 và phát âm thanh
