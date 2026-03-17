@@ -11,8 +11,8 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
-mp_drawing = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils     # Vẽ các điểm trên bàn tay
+mp_hands = mp.solutions.hands   # nhận diện bàn tay
 
 
 def play_audio(text): 
@@ -97,6 +97,8 @@ cap = cv2.VideoCapture(0)
 
 last_gesture = None
 last_time = 0
+# Tránh phát âm thanh liên tục
+# Chỉ phát khi gesture thay đổi
 
 font_pil = ImageFont.truetype("arial.ttf", 40)
 
@@ -111,20 +113,23 @@ gesture_colors = {
     "Chúc ngủ ngon": (255, 255, 0)
 }
 
+# Độ tin cậy phát hiện, và tracking
+# with ... as ... : tạo obj, dùng obj, tự giải phóng khi dùng xong
+# Mediapipe.Hands: tạo model nhận diện bàn tay, có thể: detect, xác định vị trí, 21 landmarks
 with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7) as hands:
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        ret, frame = cap.read() # đọc dữ liệu từ cam, return boolean,  frame
+        if not ret: # ko thành công
             continue
 
-        frame = cv2.flip(frame, 1)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = hands.process(rgb_frame)
+        frame = cv2.flip(frame, 1)  # lật ảnh theo trục y
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # chuyển hệ màu (scr, code)
+        result = hands.process(rgb_frame)   # process: detect bàn tay, xác định vị trí, tìm 21 landmark
 
         gesture = None
-        if result.multi_hand_landmarks:
+        if result.multi_hand_landmarks: # nếu phát hiện tay
             for hand_landmarks in result.multi_hand_landmarks:
-                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS) # vẽ 21 điểm, nối các đường
                 gesture = detect_gesture(hand_landmarks)
 
         if gesture:
@@ -157,6 +162,5 @@ with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7) a
 
 cap.release()
 cv2.destroyAllWindows()
-
 
 print(hasattr(cv2, "freetype"))
