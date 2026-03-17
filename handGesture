@@ -1,11 +1,13 @@
 import cv2
 import mediapipe as mp
-from gtts import gTTS
+from gtts import gTTS 
 import pygame
 import threading
 import time
 import os
 import warnings
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 
 warnings.filterwarnings("ignore")
 
@@ -13,26 +15,26 @@ mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
 
-# --- Fungsi untuk memainkan suara (pakai pygame agar stabil) ---
-def play_audio(text):
+def play_audio(text): 
     filename = f"voice_{text.replace(' ', '_').lower()}.mp3"
-    tts = gTTS(text=text, lang='id')
+    tts = gTTS(text=text, lang='vi') 
     tts.save(filename)
 
+    #pygame load file mp3 và phát âm thanh
     pygame.mixer.init()
     pygame.mixer.music.load(filename)
     pygame.mixer.music.play()
 
-    # Tunggu sampai suara selesai
-    while pygame.mixer.music.get_busy():
+    # chương trình chờ cho tới khi phát âm thanh xong
+    while pygame.mixer.music.get_busy():    
         time.sleep(0.1)
 
-    pygame.mixer.quit()
+    # tắt mixer
+    pygame.mixer.quit() 
     os.remove(filename)
 
 
-# --- Fungsi deteksi gesture sederhana ---
-def detect_gesture(landmarks):
+def detect_gesture(landmarks):  # nhận diện cử chỉ tay
     thumb_tip = landmarks.landmark[4].y
     index_tip = landmarks.landmark[8].y
     middle_tip = landmarks.landmark[12].y
@@ -41,42 +43,72 @@ def detect_gesture(landmarks):
 
     thumb_base = landmarks.landmark[2].y
     index_base = landmarks.landmark[5].y
+    middle_base = landmarks.landmark[9].y
+    ring_base = landmarks.landmark[13].y
+    pinky_base = landmarks.landmark[17].y
 
-    # Gesture "Perkenalkan" → tangan terbuka
-    if (thumb_tip < thumb_base and index_tip < index_base and 
-        middle_tip < index_base and ring_tip < index_base and pinky_tip < index_base):
-        return "Halo"
+    thumb_tip_x = landmarks.landmark[4].x
+    thumb_base_x = landmarks.landmark[2].x
+    index_tip_x = landmarks.landmark[8].x
+    index_base_x = landmarks.landmark[5].x
+    middle_tip_x = landmarks.landmark[12].x
+    middle_base_x = landmarks.landmark[9].x
 
-    # Gesture "Nama Saya" → jari telunjuk tegak
-    if (index_tip < index_base and middle_tip > index_base and 
-        ring_tip > index_base and pinky_tip > index_base):
-        return "Nama saya"
+    # Hello
+    if (thumb_tip < thumb_base and
+        index_tip < index_base and
+        middle_tip < middle_base and
+        ring_tip < ring_base and
+        pinky_tip < pinky_base):
+        return "He lô phờ ren"
 
-    # Gesture "Cont" → tangan mengepal
-    if (index_tip > index_base and middle_tip > index_base and 
-        ring_tip > index_base and pinky_tip > index_base):
-        return "Contoh"
+    # Súng
+    if (abs(index_tip_x - index_base_x) > abs(index_tip - index_base) and
+        abs(thumb_tip_x - thumb_base_x) > 0.05 and
+        middle_tip > middle_base and
+        ring_tip > ring_base and
+        pinky_tip > pinky_base):
+        return "Đừng để mình phải lóng"
 
-    # Gesture "Terimakasih" → tanda love (telunjuk + kelingking)
-    if (index_tip < index_base and pinky_tip < index_base and 
-        middle_tip > index_base and ring_tip > index_base):
-        return "Terimakasih"
+    # Like 👍
+    if (thumb_tip < thumb_base - 0.02 and
+        index_tip > index_base and
+        middle_tip > middle_base and
+        ring_tip > ring_base and
+        pinky_tip > pinky_base):
+        return "Like"
+
+    # Horns 🤘
+    if (index_tip < index_base and
+        pinky_tip < pinky_base and
+        middle_tip > middle_base and
+        ring_tip > ring_base):
+        return "Híp hóp never die"
+
+    # Chúc ngủ ngon
+    if (index_tip < index_base and middle_tip < middle_base and 
+        ring_tip > ring_base and pinky_tip > pinky_base):
+        return "Chúc ngủ ngon"
 
     return None
 
-
-# --- Program utama ---
+# --- Mở camera ---
 cap = cv2.VideoCapture(0)
 
 last_gesture = None
 last_time = 0
 
-# Warna teks untuk tiap gesture
+font_pil = ImageFont.truetype("arial.ttf", 40)
+
+
+
 gesture_colors = {
-    "Halo": (255, 0, 0),      # Biru
-    "Nama saya": (0, 255, 0),        # Hijau
-    "Contoh": (0, 165, 255),        # Oranye
-    "Terimakasih": (255, 0, 255)     # Ungu
+    "He lô phờ ren": (255, 0, 0),     
+    "Đừng để mình phải lóng": (0, 255, 0),      
+    "Contoh": (0, 165, 255),      
+    "Híp hóp never die": (255, 0, 255), 
+    "Like": (245, 174, 108),
+    "Chúc ngủ ngon": (255, 255, 0)
 }
 
 with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7) as hands:
@@ -97,29 +129,34 @@ with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7) a
 
         if gesture:
             text = gesture
-            color = gesture_colors.get(text, (255, 255, 255))  # warna default putih
+            color = gesture_colors.get(text, (255, 255, 255))  
             font = cv2.FONT_HERSHEY_SIMPLEX
 
-            # Posisi pojok kiri atas
             x, y = 50, 80
 
-            # Bayangan hitam tipis agar tetap terlihat
-            cv2.putText(frame, text, (x + 2, y + 2), font, 1.2, (0, 0, 0), 3, cv2.LINE_AA)
+            img_pil = Image.fromarray(frame)    # chuyển numpy array thành PIL Image
+            draw = ImageDraw.Draw(img_pil)
 
-            # Teks utama dengan warna sesuai gesture
-            cv2.putText(frame, text, (x, y), font, 1.2, color, 2, cv2.LINE_AA)
+            #viền đen
+            draw.text((x+2, y+2), text, font=font_pil, fill=(0,0,0))
 
-            # Mainkan suara kalau gesture baru terdeteksi
-            if gesture != last_gesture and time.time() - last_time > 2:
-                threading.Thread(target=play_audio, args=(text,)).start()
+            # chữ chính
+            draw.text((x, y), text, font=font_pil, fill=color)
+            frame = np.array(img_pil) 
+            
+
+            if gesture != last_gesture and time.time() - last_time > 2: 
+                threading.Thread(target=play_audio, args=(text,)).start() 
                 last_gesture = gesture
                 last_time = time.time()
 
         cv2.imshow("Hand Gesture Recognition", frame)
 
-        # Tekan ESC untuk keluar
         if cv2.waitKey(1) & 0xFF == 27:
             break
 
 cap.release()
 cv2.destroyAllWindows()
+
+
+print(hasattr(cv2, "freetype"))
